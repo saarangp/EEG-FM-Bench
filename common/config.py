@@ -66,19 +66,28 @@ class BaseLoggingArgs(BaseModel):
     ckpt_interval: int = 1
 
 
+class DataEfficiencyArgs(BaseModel):
+    """Data efficiency evaluation configuration."""
+    enabled: bool = False
+    fractions: List[float] = Field(default_factory=lambda: [0.1, 0.25, 0.5, 0.75, 1.0])
+    num_episodes: int = 5
+    seed_base: int = 42
+
+
 class AbstractConfig(BaseModel, ABC):
     """Abstract base configuration class for all baseline models."""
-    
+
     seed: int = 42
     master_port: int = 41001
     multitask: bool = False
     model_type: str = "base"  # To identify which model is being used
     conf_file: Optional[str] = None
-    
+
     data: BaseDataArgs = Field(default_factory=BaseDataArgs)
     model: BaseModelArgs = Field(default_factory=BaseModelArgs)
     training: BaseTrainingArgs = Field(default_factory=BaseTrainingArgs)
     logging: BaseLoggingArgs = Field(default_factory=BaseLoggingArgs)
+    data_efficiency: DataEfficiencyArgs = Field(default_factory=DataEfficiencyArgs)
 
     @abstractmethod
     def validate_config(self) -> bool:

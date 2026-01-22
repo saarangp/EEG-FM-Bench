@@ -179,16 +179,26 @@ class AbstractDataLoaderFactory(ABC):
         split: datasets.NamedSplit,
         num_replicas: int = 1,
         rank: int = 0,
+        subsample_fraction: float = 1.0,
+        subsample_seed: int = 0,
     ):
         """Create data loader for training/evaluation.
-        
+
         This is a concrete implementation that can be used by most models.
         Override this method for model-specific dataloader creation.
+
+        Args:
+            datasets_config: Dictionary mapping dataset names to config names
+            split: Data split (TRAIN, VALIDATION, TEST)
+            num_replicas: Number of distributed replicas
+            rank: Current process rank
+            subsample_fraction: Fraction of training data to use (1.0 = all data)
+            subsample_seed: Random seed for subsampling
         """
-        
+
         dataset_names = list(datasets_config.keys())
         config_names = list(datasets_config.values())
-        
+
         # Load combined dataset
         combined_dataset, _ = load_concat_eeg_datasets(
             dataset_names=dataset_names,
@@ -196,6 +206,13 @@ class AbstractDataLoaderFactory(ABC):
             split=split,
             cast_label=True
         )
+
+        # Apply stratified subsampling (training only)
+        if subsample_fraction < 1.0 and split == datasets.Split.TRAIN:
+            from data.processor.efficiency import stratified_subsample
+            combined_dataset = stratified_subsample(
+                combined_dataset, subsample_fraction, subsample_seed
+            )
 
         # Create adapter
         adapter = self.create_adapter(
@@ -235,6 +252,8 @@ class AbstractDataLoaderFactory(ABC):
         num_replicas: int,
         rank: int,
         split: datasets.NamedSplit,
+        subsample_fraction: float = 1.0,
+        subsample_seed: int = 0,
     ) -> tuple[Union[list[DataLoader], DataLoader], Union[list[DistributedGroupBatchSampler], DistributedGroupBatchSampler]]:
         if mixed:
             return self.loading_dataset(
@@ -242,6 +261,8 @@ class AbstractDataLoaderFactory(ABC):
                 split=split,
                 num_replicas=num_replicas,
                 rank=rank,
+                subsample_fraction=subsample_fraction,
+                subsample_seed=subsample_seed,
             )
         else:
             dataloaders, samplers = [], []
@@ -250,7 +271,9 @@ class AbstractDataLoaderFactory(ABC):
                     datasets_config={dataset_name: config_name},
                     split=split,
                     num_replicas=num_replicas,
-                    rank=rank
+                    rank=rank,
+                    subsample_fraction=subsample_fraction,
+                    subsample_seed=subsample_seed,
                 )
                 dataloaders.append(loader)
                 samplers.append(sampler)

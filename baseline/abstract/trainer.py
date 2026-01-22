@@ -11,6 +11,7 @@ from typing import Dict, Optional
 
 import comet_ml
 import datasets
+import numpy as np
 import pandas as pd
 import torch
 import wandb
@@ -512,8 +513,15 @@ class AbstractTrainer(ABC):
 
         return dataloaders, samplers
 
-    def create_single_dataloader(self, ds_name: str, ds_config: str, split: datasets.NamedSplit = datasets.Split.TRAIN):
-        logger.info("Creating single main training dataloader...")
+    def create_single_dataloader(
+        self,
+        ds_name: str,
+        ds_config: str,
+        split: datasets.NamedSplit = datasets.Split.TRAIN,
+        subsample_fraction: float = 1.0,
+        subsample_seed: int = 0
+    ):
+        logger.info(f"Creating single dataloader for {ds_name} ({split})...")
 
         dataloader, sampler = self.dataloader_factory.create_dataloader(
             datasets_config={ds_name: ds_config},
@@ -521,6 +529,8 @@ class AbstractTrainer(ABC):
             num_replicas=self.world_size,
             rank=self.local_rank,
             split=split,
+            subsample_fraction=subsample_fraction,
+            subsample_seed=subsample_seed,
         )
 
         dataloader = dataloader[0]
@@ -866,6 +876,12 @@ class AbstractTrainer(ABC):
         """Main training loop for separate models pattern - train one model per dataset."""
         torch.distributed.barrier()
 
+        # Check if data efficiency mode is enabled
+        if self.cfg.data_efficiency.enabled:
+            logger.info("Data efficiency evaluation mode enabled")
+            self._run_data_efficiency_evaluation()
+            return
+
         logger.info(f"Starting separate models training for {self.num_ds} datasets")
 
         # Train each dataset separately
@@ -918,4 +934,184 @@ class AbstractTrainer(ABC):
         self.finish_cloud_logging()
         clean_torch_distributed(self.local_rank)
         logger.info("Separate models training completed for all datasets!")
+
+    def _run_data_efficiency_evaluation(self):
+        """Run data efficiency evaluation with multiple episodes per fraction."""
+        fractions = self.cfg.data_efficiency.fractions
+        num_episodes = self.cfg.data_efficiency.num_episodes
+        seed_base = self.cfg.data_efficiency.seed_base
+
+        logger.info(f"Data efficiency evaluation: fractions={fractions}, episodes={num_episodes}")
+
+        # Results storage: {ds_name: {fraction: [episode_metrics]}}
+        all_results = {ds: {f: [] for f in fractions} for ds in self.ds_conf.keys()}
+
+        for ds_name, ds_config in self.ds_conf.items():
+            logger.info(f"=== Evaluating dataset: {ds_name} ===")
+
+            for fraction in fractions:
+                for episode in range(num_episodes):
+                    episode_seed = seed_base + episode
+                    logger.info(
+                        f"  Fraction={fraction*100:.0f}%, Episode={episode+1}/{num_episodes}, seed={episode_seed}"
+                    )
+
+                    # Reset model to pretrained weights for each episode
+                    self.collect_dataset_info(mixed=False, ds_name=ds_name)
+                    model = self.setup_model()
+
+                    # Create dataloaders (subsampled training, full val/test)
+                    train_loader, train_sampler = self.create_single_dataloader(
+                        ds_name, ds_config, datasets.Split.TRAIN,
+                        subsample_fraction=fraction,
+                        subsample_seed=episode_seed
+                    )
+                    valid_loader, _ = self.create_single_dataloader(
+                        ds_name, ds_config, datasets.Split.VALIDATION
+                    )
+                    test_loader, _ = self.create_single_dataloader(
+                        ds_name, ds_config, datasets.Split.TEST
+                    )
+
+                    # Setup optimizer and scheduler
+                    self.setup_optimizer_and_scheduler(model, train_loader)
+
+                    # Training loop for this episode
+                    for epoch in range(self.cfg.training.max_epochs):
+                        self.epoch = epoch
+                        torch.distributed.barrier()
+                        self.train_epoch(train_loader, train_sampler)
+                        self.eval_epoch([valid_loader], 'eval')
+
+                    # Final test evaluation
+                    test_metrics = self._eval_epoch_with_return([test_loader], 'test')
+                    all_results[ds_name][fraction].append(test_metrics)
+
+                    # Reset counters for next episode
+                    self.epoch = 0
+                    self.current_step = 0
+
+                    logger.info(
+                        f"  Episode {episode+1} complete: balanced_acc={test_metrics.get('balanced_acc', 0):.4f}"
+                    )
+
+        # Aggregate and save results
+        self._save_efficiency_results(all_results)
+        self.finish_cloud_logging()
+        clean_torch_distributed(self.local_rank)
+        logger.info("Data efficiency evaluation completed!")
+
+    def _eval_epoch_with_return(self, dataloaders: list[DataLoader], prefix: str) -> Dict[str, float]:
+        """Evaluate one epoch and return metrics dictionary."""
+        if get_is_master():
+            logger.info(f"Starting {prefix} evaluation...")
+
+        self.model.eval()
+
+        overall_metrics = {}
+        for ds_name in self.ds_info.keys():
+            n_class = self.ds_info[ds_name]['n_class']
+            overall_metrics[ds_name] = {
+                'loss_sum': torch.zeros([1], dtype=torch.float64, device=self.device),
+                'cm': torch.zeros((n_class, n_class), dtype=torch.int64, device=self.device),
+                'cnt': torch.zeros(1, dtype=torch.int64, device=self.device),
+                'logits': [],
+                'labels': [],
+            }
+
+        with torch.no_grad():
+            for dataloader in dataloaders:
+                for batch in dataloader:
+                    batch = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                    labels = batch['label']
+                    ds_name = batch['montage'][0].split('/')[0]
+                    n_class = self.ds_info[ds_name]['n_class']
+
+                    # Forward pass with mixed precision
+                    logits, loss = self.train_step(batch, labels)
+
+                    logits = logits.float()
+                    pred = torch.argmax(logits, dim=1).detach()
+                    cm = self._calc_confusion_matrix(pred, labels.detach(), n_class)
+
+                    overall_metrics[ds_name]['loss_sum'] += loss.detach() * len(batch)
+                    overall_metrics[ds_name]['cnt'] += len(batch)
+                    overall_metrics[ds_name]['cm'] += cm.detach()
+
+                    logits_across, labels_across = self._gather_result(logits.detach(), labels.detach())
+                    if get_is_master():
+                        overall_metrics[ds_name]['logits'].append(logits_across.cpu())
+                        overall_metrics[ds_name]['labels'].append(labels_across.cpu())
+
+                torch.distributed.barrier()
+
+        result_metrics = {}
+        for ds_name in self.ds_info.keys():
+            torch.distributed.all_reduce(overall_metrics[ds_name]['loss_sum'], op=torch.distributed.ReduceOp.SUM)
+            torch.distributed.all_reduce(overall_metrics[ds_name]['cnt'], op=torch.distributed.ReduceOp.SUM)
+            torch.distributed.all_reduce(overall_metrics[ds_name]['cm'], op=torch.distributed.ReduceOp.SUM)
+
+            overall_metrics[ds_name]['loss'] = overall_metrics[ds_name]['loss_sum'] / overall_metrics[ds_name][
+                'cnt'].float()
+
+            # Calculate metrics on aggregated data (only master process)
+            if get_is_master():
+                labels_all = torch.concat(overall_metrics[ds_name]['labels'], dim=0)
+                logits_all = torch.concat(overall_metrics[ds_name]['logits'], dim=0)
+                loss_metric = overall_metrics[ds_name]['loss'].detach().cpu().item()
+                metrics = self._calculate_metrics_for_dataset(
+                    labels=labels_all,
+                    logits=logits_all,
+                    ds_name=ds_name,
+                    prefix=prefix,
+                    loss=loss_metric
+                )
+
+                # Extract just the metric values without dataset prefix for storage
+                for key, value in metrics.items():
+                    # Remove ds_name/prefix/ from key
+                    short_key = key.split('/')[-1]
+                    result_metrics[short_key] = value
+
+                log_console = format_console_log_dict(metrics, prefix=f"{ds_name}/{prefix}")
+                logger.info(log_console)
+
+        torch.distributed.barrier()
+        return result_metrics
+
+    def _save_efficiency_results(self, all_results: dict):
+        """Aggregate episode results and save to CSV."""
+        if not get_is_master():
+            return
+
+        rows = []
+        for ds_name, fraction_results in all_results.items():
+            for fraction, episode_metrics_list in fraction_results.items():
+                # Extract balanced accuracy (or accuracy as fallback) from each episode
+                accs = [
+                    m.get('balanced_acc', m.get('acc', 0))
+                    for m in episode_metrics_list
+                ]
+                mean_acc = np.mean(accs) if accs else 0.0
+                std_acc = np.std(accs) if accs else 0.0
+
+                rows.append({
+                    'dataset': ds_name,
+                    'fraction': fraction,
+                    'mean_balanced_acc': mean_acc,
+                    'std_balanced_acc': std_acc,
+                    'num_episodes': len(accs),
+                    'all_accs': accs
+                })
+
+                logger.info(
+                    f"{ds_name} @ {fraction*100:.0f}%: {mean_acc:.4f} +/- {std_acc:.4f} "
+                    f"(n={len(accs)})"
+                )
+
+        df = pd.DataFrame(rows)
+        output_path = Path(self.cfg.logging.output_dir) / 'data_efficiency_results.csv'
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(output_path, index=False)
+        logger.info(f"Data efficiency results saved to {output_path}")
 
