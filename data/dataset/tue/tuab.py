@@ -69,6 +69,7 @@ class TuabConfig(EEGConfig):
     scan_sub_dir: str = 'edf'
 
     category: list[str] = field(default_factory=lambda: ['normal', 'abnormal'])
+    raw_path: Optional[str] = '/radraid2/spanchavati/EEGBench/data/tuab'
 
 
 class TuabBuilder(EEGDatasetBuilder):

@@ -63,6 +63,7 @@ if __name__ == '__main__':
         file_cfg = OmegaConf.create({})
 
     code_cfg = OmegaConf.create(PreprocArgs().model_dump())
+
     
     setup_log()
     cfg = OmegaConf.merge(code_cfg, file_cfg, cli_args)

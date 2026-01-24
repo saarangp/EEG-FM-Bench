@@ -4,7 +4,7 @@ import logging
 import os.path
 from typing import Optional
 from logging import Filter, Formatter, StreamHandler
-
+from common.distributed.env import get_global_rank, get_is_master  # , get_is_slurm_job
 
 PRECISION_DICT = {
     "lr": "6e",
@@ -27,7 +27,7 @@ class DistributedTimeFilter(Filter):
         if start_time is None:
             start_time = time.time()
         self.start_time = start_time
-        self.is_slurm = get_is_slurm_job()
+        self.is_slurm = False # get_is_slurm_job()
         self.rank = get_global_rank()
 
     def filter(self, record):

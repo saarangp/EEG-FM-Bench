@@ -1,0 +1,40 @@
+0:INFO    26-01-22 15:01:33.349 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 15:01:33.350 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 15:01:33.350 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 15:01:33.956 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 15:01:34.482 +00:00:01 - preproc.py:33 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
+0:INFO    26-01-22 15:06:24.643 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 15:06:24.643 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 15:06:24.643 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 15:06:25.320 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 15:06:25.838 +00:00:01 - preproc.py:33 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
+0:INFO    26-01-22 15:13:39.832 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 15:13:39.833 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 15:13:39.833 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 15:13:40.440 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 15:13:41.021 +00:00:01 - preproc.py:33 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
+0:INFO    26-01-22 16:56:47.170 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 16:56:47.170 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 16:56:47.170 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 16:56:47.667 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 16:56:48.336 +00:00:01 - preproc.py:33 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
+0:INFO    26-01-22 16:59:04.847 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 16:59:04.847 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 16:59:04.847 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 16:59:05.363 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 16:59:05.948 +00:00:01 - preproc.py:33 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
+0:INFO    26-01-22 16:59:38.591 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 16:59:38.591 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 16:59:38.592 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 16:59:39.176 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 16:59:39.644 +00:00:01 - preproc.py:41 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
+0:INFO    26-01-22 17:32:43.103 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 17:32:43.104 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 17:32:43.104 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 17:32:43.654 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 17:32:44.157 +00:00:01 - preproc.py:41 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
+0:INFO    26-01-22 17:34:04.028 +00:00:00 - builder.py:344 - tuab cache cleared.
+0:INFO    26-01-22 17:34:04.030 +00:00:00 - builder.py:505 - Walking eeg data files...
+0:INFO    26-01-22 17:34:04.030 +00:00:00 - builder.py:958 - Run _gather_files parallel in 48 processes with chunksize 1
+0:INFO    26-01-22 17:34:04.571 +00:00:00 - builder.py:958 - Run _check_montage_single_file parallel in 48 processes with chunksize 1
+0:ERROR   26-01-22 17:34:05.400 +00:00:01 - preproc.py:41 - Preparation of dataset tuab finetune exit with error: '_PatchedModuleObj' object has no attribute 'bool'.
